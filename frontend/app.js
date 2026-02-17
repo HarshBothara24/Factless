@@ -47,12 +47,17 @@ class FactlessApp {
     }
 
     attachEventListeners() {
+        console.log('Attaching event listeners...');
+        
         // Input text events
         this.inputText.addEventListener('input', () => this.updateCharCount());
         this.inputText.addEventListener('input', () => this.toggleAnalyzeButton());
 
         // Button events
-        this.analyzeBtn.addEventListener('click', () => this.analyzeText());
+        this.analyzeBtn.addEventListener('click', () => {
+            console.log('Analyze button clicked');
+            this.analyzeText();
+        });
         this.exampleBtn.addEventListener('click', () => this.loadRandomExample());
         this.clearText.addEventListener('click', () => this.clearInput());
         this.refreshStatus.addEventListener('click', () => this.checkSystemStatus());
@@ -71,6 +76,8 @@ class FactlessApp {
                 this.analyzeText();
             }
         });
+        
+        console.log('Event listeners attached successfully');
     }
 
     updateCharCount() {
@@ -150,7 +157,10 @@ class FactlessApp {
     }
 
     async analyzeText() {
+        console.log('analyzeText() called');
         const text = this.inputText.value.trim();
+        
+        console.log('Text length:', text.length);
         
         if (!text) {
             alert('Please enter some text to analyze.');
@@ -163,12 +173,15 @@ class FactlessApp {
         }
 
         this.showLoadingState();
+        console.log('Sending request to API...');
 
         try {
             const requestData = {
                 text: text,
                 include_module_details: this.includeDetails.checked
             };
+
+            console.log('Request data:', requestData);
 
             const response = await fetch(`${this.apiBaseUrl}/analyze`, {
                 method: 'POST',
@@ -178,12 +191,16 @@ class FactlessApp {
                 body: JSON.stringify(requestData)
             });
 
+            console.log('Response status:', response.status);
+
             if (!response.ok) {
                 const errorData = await response.json();
+                console.error('Error response:', errorData);
                 throw new Error(errorData.detail || 'Analysis failed');
             }
 
             const result = await response.json();
+            console.log('Analysis result:', result);
             this.displayResults(result);
 
         } catch (error) {
@@ -359,5 +376,14 @@ class FactlessApp {
 
 // Initialize the application when the DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    new FactlessApp();
+    console.log('DOM loaded, initializing FACTLESS app...');
+    try {
+        const app = new FactlessApp();
+        console.log('FACTLESS app initialized successfully');
+        
+        // Make app globally accessible for debugging
+        window.factlessApp = app;
+    } catch (error) {
+        console.error('Failed to initialize app:', error);
+    }
 });

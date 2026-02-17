@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from typing import List, Optional
 import time
+from loguru import logger
 
 from factless import FactlessAnalyzer, AnalysisResult, RiskLevel
 from factless.config import FactlessConfig
@@ -34,7 +35,15 @@ app.mount("/static", StaticFiles(directory="frontend"), name="static")
 
 # Initialize analyzer
 config = FactlessConfig()
-analyzer = FactlessAnalyzer(config)
+
+# Try to initialize analyzer at startup
+try:
+    logger.info("Initializing FACTLESS analyzer...")
+    analyzer = FactlessAnalyzer(config)
+    logger.info("✓ Analyzer initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize analyzer: {e}")
+    analyzer = None
 
 
 # Request/Response models
@@ -114,8 +123,12 @@ async def analyze_text(request: AnalysisRequest):
     Returns risk score, level, and explanations based on internal linguistic patterns.
     """
     try:
+        logger.info(f"Received analysis request: {len(request.text)} characters")
+        
         # Perform analysis
         result = analyzer.analyze(request.text)
+        
+        logger.info(f"Analysis complete: risk={result.risk_level.value}, score={result.risk_score:.3f}")
         
         # Prepare response
         response_data = {
@@ -145,6 +158,15 @@ async def analyze_text(request: AnalysisRequest):
                 "claim_density": result.claim_density.claim_density,
                 "suspicious_entities": len(result.entity_fabrication.suspicious_entities)
             }
+        
+        return AnalysisResponse(**response_data)
+        
+    except ValueError as e:
+        logger.error(f"Validation error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Analysis failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
         
         return AnalysisResponse(**response_data)
         
@@ -259,7 +281,11 @@ async def get_status():
 @app.get("/health")
 async def health_check():
     """Simple health check endpoint."""
-    return {"status": "healthy", "timestamp": time.time()}
+    return {
+        "status": "healthy", 
+        "timestamp": time.time(),
+        "analyzer_initialized": analyzer is not None
+    }
 
 
 if __name__ == "__main__":

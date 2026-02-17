@@ -114,29 +114,29 @@ class ClaimExtractionModule(BaseModule):
     
     def _build_claim_extraction_prompt(self, sentence_text: str) -> str:
         """Build the prompt for claim extraction."""
-        return f"""
-You are a linguistic parser. Extract assertive claims from the following sentence.
+        return f"""You are a linguistic parser. Extract assertive claims from the sentence below.
+
+CRITICAL: Respond ONLY with valid JSON. No explanations, no markdown, just pure JSON.
 
 RULES:
-- Only extract claims that are explicitly stated in the sentence
+- Only extract claims explicitly stated in the sentence
 - Do not add information not present in the original text
-- Do not verify or judge the correctness of claims
+- Do not verify or judge correctness of claims
 - A claim is any assertive statement presenting a fact, guarantee, or explanation
 - Include confidence markers (words indicating certainty/uncertainty)
 
 Sentence: "{sentence_text}"
 
-Return JSON in this exact format:
+Respond with ONLY this JSON structure (no other text):
 {{
     "claims": [
         {{
             "text": "exact claim text from sentence",
-            "type": "fact|guarantee|explanation|opinion",
-            "confidence_markers": ["list", "of", "confidence", "words"]
+            "type": "fact",
+            "confidence_markers": []
         }}
     ]
-}}
-"""
+}}"""
     
     def _call_llm(self, prompt: str) -> str:
         """
@@ -162,7 +162,29 @@ Return JSON in this exact format:
             )
             
             if response.text:
-                return response.text.strip()
+                response_text = response.text.strip()
+                
+                # Try to extract JSON from markdown code blocks if present
+                if "```json" in response_text:
+                    # Extract JSON from markdown code block
+                    start = response_text.find("```json") + 7
+                    end = response_text.find("```", start)
+                    if end > start:
+                        response_text = response_text[start:end].strip()
+                elif "```" in response_text:
+                    # Extract from generic code block
+                    start = response_text.find("```") + 3
+                    end = response_text.find("```", start)
+                    if end > start:
+                        response_text = response_text[start:end].strip()
+                
+                # Validate it's JSON
+                try:
+                    json.loads(response_text)
+                    return response_text
+                except json.JSONDecodeError:
+                    self.log(f"Gemini returned non-JSON response: {response_text[:100]}", "WARNING")
+                    return self._mock_response()
             else:
                 self.log("Empty response from Gemini", "WARNING")
                 return self._mock_response()

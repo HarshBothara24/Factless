@@ -30,40 +30,59 @@ FACTLESS operates as a deterministic 7-step pipeline:
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### One-Command Installation
 
-- Python 3.11+
-- Gemini API key (optional, fallback available)
+**Windows:**
+```bash
+install.bat
+```
 
-### Installation
+**Mac/Linux:**
+```bash
+python install.py
+```
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd factless
-   ```
+This will:
+- Install all dependencies
+- Download required models
+- Optionally setup Gemini API
+- Run tests to verify installation
 
-2. **Install dependencies**
+### Start the Server
+
+**Windows:**
+```bash
+start.bat
+```
+
+**Mac/Linux:**
+```bash
+python start_server.py
+```
+
+Then open: **http://localhost:8000**
+
+### Manual Installation
+
+If you prefer manual setup:
+
+1. **Install dependencies**
    ```bash
    pip install -r requirements.txt
    python -m spacy download en_core_web_sm
    ```
 
-3. **Setup Gemini API (Optional)**
+2. **Test installation**
    ```bash
-   python setup_gemini.py
-   ```
-   - Get your API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
-   - The system works without API key using fallback responses
-
-4. **Run development server**
-   ```bash
-   python run_dev.py
+   python test_api.py
    ```
 
-5. **Open your browser**
-   - Frontend: http://localhost:8000
-   - API docs: http://localhost:8000/docs
+3. **Start server**
+   ```bash
+   python start_server.py
+   ```
+
+See [QUICKSTART.md](QUICKSTART.md) for detailed instructions and troubleshooting.
 
 ## 🖥️ Web Interface
 
