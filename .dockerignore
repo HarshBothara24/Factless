@@ -1,0 +1,98 @@
+# FACTLESS Docker Ignore
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info
+dist
+build
+.pytest_cache
+.coverage
+htmlcov
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# Environment files (use docker-compose env instead)
+.env
+.env.local
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# Tests
+tests/
+test_*.py
+*_test.py
+
+# Node modules (for extensions)
+node_modules/
+extensions/vscode/node_modules/
+extensions/vscode/out/
+
+# Chrome extension
+extensions/chrome/*.crx
+extensions/chrome/*.pem
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Large files
+*.zip
+*.tar.gz
+*.rar
+
+# Development files
+.pytest_cache/
+.mypy_cache/
+.tox/
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Examples (not needed in production)
+examples/
+
+# Git files
+.git/
+.gitignore

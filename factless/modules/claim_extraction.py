@@ -57,21 +57,36 @@ class ClaimExtractionModule(BaseModule):
         all_claims = []
         total_llm_time = 0
         
-        for sentence in sentences:
-            start_time = time.time()
+        # BATCH PROCESSING: Process all sentences in one API call
+        start_time = time.time()
+        
+        try:
+            claims = self._extract_claims_batch(sentences)
+            all_claims.extend(claims)
             
-            try:
-                claims = self._extract_claims_from_sentence(sentence)
-                all_claims.extend(claims)
-                
-                llm_time = (time.time() - start_time) * 1000
-                total_llm_time += llm_time
-                
-                self.log(f"Extracted {len(claims)} claims from sentence {sentence.index}")
-                
-            except Exception as e:
-                self.log(f"Error extracting claims from sentence {sentence.index}: {str(e)}", "ERROR")
-                continue
+            llm_time = (time.time() - start_time) * 1000
+            total_llm_time += llm_time
+            
+            self.log(f"Extracted {len(claims)} claims from {len(sentences)} sentences in one batch")
+            
+        except Exception as e:
+            self.log(f"Error extracting claims in batch: {str(e)}", "ERROR")
+            # Fallback: try individual sentences if batch fails
+            self.log("Falling back to individual sentence processing", "WARNING")
+            for sentence in sentences:
+                try:
+                    start_time = time.time()
+                    claims = self._extract_claims_from_sentence(sentence)
+                    all_claims.extend(claims)
+                    
+                    llm_time = (time.time() - start_time) * 1000
+                    total_llm_time += llm_time
+                    
+                    self.log(f"Extracted {len(claims)} claims from sentence {sentence.index}")
+                    
+                except Exception as e:
+                    self.log(f"Error extracting claims from sentence {sentence.index}: {str(e)}", "ERROR")
+                    continue
         
         self.log(f"Total claims extracted: {len(all_claims)}")
         
@@ -82,6 +97,83 @@ class ClaimExtractionModule(BaseModule):
             llm_model=self.llm_model,
             llm_latency_ms=total_llm_time
         )
+    
+    def _extract_claims_batch(self, sentences: List[Sentence]) -> List[Claim]:
+        """Extract claims from multiple sentences in one API call (OPTIMIZED)."""
+        
+        # Build batch prompt with all sentences
+        prompt = self._build_batch_claim_extraction_prompt(sentences)
+        
+        # Single API call for all sentences
+        response = self._call_llm(prompt)
+        
+        # Parse the structured response
+        try:
+            response_data = json.loads(response)
+            claims = []
+            
+            # Response should have claims organized by sentence index
+            for sentence_data in response_data.get("sentences", []):
+                sentence_index = sentence_data.get("sentence_index", 0)
+                
+                for claim_data in sentence_data.get("claims", []):
+                    claim = Claim(
+                        text=claim_data["text"],
+                        sentence_index=sentence_index,
+                        claim_type=claim_data.get("type", "fact"),
+                        confidence_markers=claim_data.get("confidence_markers", [])
+                    )
+                    claims.append(claim)
+            
+            return claims
+            
+        except json.JSONDecodeError as e:
+            self.log(f"Failed to parse batch LLM response as JSON: {str(e)}", "ERROR")
+            return []
+    
+    def _build_batch_claim_extraction_prompt(self, sentences: List[Sentence]) -> str:
+        """Build prompt for batch claim extraction from multiple sentences."""
+        
+        # Format sentences with indices
+        sentences_text = "\n".join([
+            f"[Sentence {i}]: {sentence.text}"
+            for i, sentence in enumerate(sentences)
+        ])
+        
+        return f"""
+You are a linguistic parser. Extract assertive claims from the following sentences.
+
+RULES:
+- Only extract claims that are explicitly stated in each sentence
+- Do not add information not present in the original text
+- Do not verify or judge the correctness of claims
+- A claim is any assertive statement presenting a fact, guarantee, or explanation
+- Include confidence markers (words indicating certainty/uncertainty)
+- Process ALL sentences and return claims for each
+
+Sentences:
+{sentences_text}
+
+Return JSON in this exact format:
+{{
+    "sentences": [
+        {{
+            "sentence_index": 0,
+            "claims": [
+                {{
+                    "text": "exact claim text from sentence",
+                    "type": "fact|guarantee|explanation|opinion",
+                    "confidence_markers": ["list", "of", "confidence", "words"]
+                }}
+            ]
+        }},
+        {{
+            "sentence_index": 1,
+            "claims": [...]
+        }}
+    ]
+}}
+"""
     
     def _extract_claims_from_sentence(self, sentence: Sentence) -> List[Claim]:
         """Extract claims from a single sentence using LLM."""
@@ -114,15 +206,18 @@ class ClaimExtractionModule(BaseModule):
     
     def _build_claim_extraction_prompt(self, sentence_text: str) -> str:
         """Build the prompt for claim extraction."""
-        return f"""You are a linguistic parser. Extract assertive claims from the sentence below.
+        return f"""You are a linguistic parser. Extract ALL assertive claims from the sentence below.
 
 CRITICAL: Respond ONLY with valid JSON. No explanations, no markdown, just pure JSON.
 
 RULES:
+- Extract EVERY claim that presents a fact, statistic, name, date, or specific detail
+- Include claims about historical events, people, places, inventions, or achievements  
+- Mark specific numbers, dates, and proper nouns as separate claims
 - Only extract claims explicitly stated in the sentence
 - Do not add information not present in the original text
 - Do not verify or judge correctness of claims
-- A claim is any assertive statement presenting a fact, guarantee, or explanation
+- A claim is any assertive statement presenting a fact, guarantee, explanation, or historical assertion
 - Include confidence markers (words indicating certainty/uncertainty)
 
 Sentence: "{sentence_text}"
@@ -136,7 +231,9 @@ Respond with ONLY this JSON structure (no other text):
             "confidence_markers": []
         }}
     ]
-}}"""
+}}
+
+Extract as many claims as possible. Be thorough."""
     
     def _call_llm(self, prompt: str) -> str:
         """
@@ -196,11 +293,16 @@ Respond with ONLY this JSON structure (no other text):
     def _mock_response(self) -> str:
         """Fallback mock response when Gemini is unavailable."""
         return json.dumps({
-            "claims": [
+            "sentences": [
                 {
-                    "text": "Mock claim extraction (Gemini unavailable)",
-                    "type": "fact",
-                    "confidence_markers": []
+                    "sentence_index": 0,
+                    "claims": [
+                        {
+                            "text": "Mock claim extraction (Gemini unavailable)",
+                            "type": "fact",
+                            "confidence_markers": []
+                        }
+                    ]
                 }
             ]
         })

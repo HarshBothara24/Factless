@@ -2,9 +2,11 @@
 class FactlessApp {
     constructor() {
         this.apiBaseUrl = 'http://localhost:8000';
+        this.analysisHistory = this.loadHistoryFromStorage();
         this.initializeElements();
         this.attachEventListeners();
         this.checkSystemStatus();
+        this.displayHistory();
         
         // Example texts
         this.examples = {
@@ -44,6 +46,10 @@ class FactlessApp {
 
         // Example cards
         this.exampleCards = document.querySelectorAll('.example-card');
+        
+        // History elements
+        this.historyList = document.getElementById('historyList');
+        this.clearHistory = document.getElementById('clearHistory');
     }
 
     attachEventListeners() {
@@ -69,6 +75,11 @@ class FactlessApp {
                 this.loadExample(risk);
             });
         });
+
+        // History events
+        if (this.clearHistory) {
+            this.clearHistory.addEventListener('click', () => this.clearAnalysisHistory());
+        }
 
         // Enter key to analyze
         this.inputText.addEventListener('keydown', (e) => {
@@ -202,6 +213,9 @@ class FactlessApp {
             const result = await response.json();
             console.log('Analysis result:', result);
             this.displayResults(result);
+            
+            // Add to history
+            this.addToHistory(result, text);
 
         } catch (error) {
             console.error('Analysis failed:', error);
@@ -371,6 +385,92 @@ class FactlessApp {
             'error': 'fas fa-times-circle'
         };
         return icons[signalType] || 'fas fa-info-circle';
+    }
+
+    // History Management
+    loadHistoryFromStorage() {
+        try {
+            const history = localStorage.getItem('factlessHistory');
+            return history ? JSON.parse(history) : [];
+        } catch (error) {
+            console.error('Failed to load history:', error);
+            return [];
+        }
+    }
+
+    saveHistoryToStorage() {
+        try {
+            localStorage.setItem('factlessHistory', JSON.stringify(this.analysisHistory));
+        } catch (error) {
+            console.error('Failed to save history:', error);
+        }
+    }
+
+    addToHistory(result, text) {
+        const historyItem = {
+            timestamp: new Date().toISOString(),
+            risk_score: result.risk_score,
+            risk_level: result.risk_level,
+            text: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
+            full_result: result
+        };
+
+        this.analysisHistory.unshift(historyItem);
+        
+        // Keep only last 10 items
+        if (this.analysisHistory.length > 10) {
+            this.analysisHistory = this.analysisHistory.slice(0, 10);
+        }
+
+        this.saveHistoryToStorage();
+        this.displayHistory();
+    }
+
+    displayHistory() {
+        if (!this.historyList) return;
+
+        if (this.analysisHistory.length === 0) {
+            this.historyList.innerHTML = '<p class="text-xs text-gray-500 italic">No analysis history yet</p>';
+            return;
+        }
+
+        this.historyList.innerHTML = this.analysisHistory.map((item, index) => {
+            const date = new Date(item.timestamp);
+            const timeStr = date.toLocaleTimeString();
+            const dateStr = date.toLocaleDateString();
+            
+            const riskColor = item.risk_level === 'HIGH' ? 'red' : 
+                             item.risk_level === 'MEDIUM' ? 'yellow' : 'green';
+
+            return `
+                <div class="history-item p-2 bg-gray-50 rounded hover:bg-gray-100 cursor-pointer text-xs border border-gray-200" data-index="${index}">
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="px-2 py-0.5 rounded text-xs font-semibold bg-${riskColor}-100 text-${riskColor}-800">
+                            ${item.risk_level} (${(item.risk_score * 100).toFixed(0)}%)
+                        </span>
+                        <span class="text-gray-500">${timeStr}</span>
+                    </div>
+                    <p class="text-gray-700 truncate">${item.text}</p>
+                </div>
+            `;
+        }).join('');
+
+        // Add click handlers to history items
+        document.querySelectorAll('.history-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const index = parseInt(item.dataset.index);
+                const historyItem = this.analysisHistory[index];
+                this.displayResults(historyItem.full_result);
+            });
+        });
+    }
+
+    clearAnalysisHistory() {
+        if (confirm('Are you sure you want to clear all analysis history?')) {
+            this.analysisHistory = [];
+            this.saveHistoryToStorage();
+            this.displayHistory();
+        }
     }
 }
 

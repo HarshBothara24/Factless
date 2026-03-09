@@ -1,0 +1,105 @@
+{
+  "name": "factless-vscode",
+  "displayName": "FACTLESS - AI Reliability Checker",
+  "description": "Real-time hallucination detection for AI-generated code and text",
+  "version": "1.0.0",
+  "publisher": "factless",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Machine Learning",
+    "Linters",
+    "Other"
+  ],
+  "keywords": [
+    "ai",
+    "hallucination",
+    "reliability",
+    "copilot",
+    "llm"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "factless.analyzeSelection",
+        "title": "FACTLESS: Analyze Selected Text"
+      },
+      {
+        "command": "factless.analyzeClipboard",
+        "title": "FACTLESS: Analyze Clipboard Content"
+      },
+      {
+        "command": "factless.toggleAutoAnalysis",
+        "title": "FACTLESS: Toggle Auto-Analysis"
+      },
+      {
+        "command": "factless.showSettings",
+        "title": "FACTLESS: Open Settings"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "factless.analyzeSelection",
+        "key": "ctrl+shift+f",
+        "mac": "cmd+shift+f",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "title": "FACTLESS",
+      "properties": {
+        "factless.apiUrl": {
+          "type": "string",
+          "default": "http://localhost:8000",
+          "description": "FACTLESS API server URL"
+        },
+        "factless.autoAnalyze": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically analyze AI-generated content"
+        },
+        "factless.riskThreshold": {
+          "type": "string",
+          "enum": ["low", "medium", "high"],
+          "default": "medium",
+          "description": "Minimum risk level to show warnings"
+        },
+        "factless.showInlineWarnings": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show inline warnings in editor"
+        },
+        "factless.monitorCopilot": {
+          "type": "boolean",
+          "default": true,
+          "description": "Monitor GitHub Copilot suggestions"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.80.0",
+    "@typescript-eslint/eslint-plugin": "^5.0.0",
+    "@typescript-eslint/parser": "^5.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vsce": "^2.15.0"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  }
+}

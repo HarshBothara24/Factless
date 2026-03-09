@@ -36,10 +36,10 @@ class ScoringEngine:
         """Calculate weighted final risk score."""
         
         # Extract individual module scores
-        contradiction_score = len(contradiction_result.contradictions) * 0.2  # Each contradiction adds risk
+        contradiction_score = len(contradiction_result.contradictions) * 0.25  # Increased from 0.2
         contradiction_score = min(1.0, contradiction_score)
         
-        logical_flow_score = len(logical_flow_result.logical_flaws) * 0.15  # Each flaw adds risk
+        logical_flow_score = len(logical_flow_result.logical_flaws) * 0.20  # Increased from 0.15
         logical_flow_score = min(1.0, logical_flow_score)
         
         overconfidence_score = overconfidence_result.avg_confidence_score
@@ -56,6 +56,23 @@ class ScoringEngine:
             self.weights.claim_density * claim_density_score +
             self.weights.entity_fabrication * entity_fabrication_score
         )
+        
+        # Bonus multiplier if multiple high-risk signals detected
+        high_risk_signals = 0
+        if entity_fabrication_score > 0.6:
+            high_risk_signals += 1
+        if contradiction_score > 0.5:
+            high_risk_signals += 1
+        if overconfidence_score > 0.5:
+            high_risk_signals += 1
+        if claim_density_score > 0.7:
+            high_risk_signals += 1
+        
+        # Apply multiplier for multiple high-risk signals
+        if high_risk_signals >= 2:
+            final_score = min(1.0, final_score * 1.15)  # 15% boost
+        elif high_risk_signals >= 3:
+            final_score = min(1.0, final_score * 1.25)  # 25% boost
         
         return min(1.0, final_score)
     
@@ -173,14 +190,32 @@ class ExplainabilityGenerator:
         """Generate explanations for entity fabrication signals."""
         explanations = []
         
+        # Calculate individual entity risk contributions based on severity
         for entity in result.suspicious_entities:
-            reasons_text = ", ".join(entity.suspicion_reasons)
+            reasons_text = ", ".join([r.replace('_', ' ') for r in entity.suspicion_reasons])
+            
+            # Calculate risk contribution based on suspicion types
+            risk_contribution = 0.0
+            for reason in entity.suspicion_reasons:
+                if "academic_style_fabrication" in reason:
+                    risk_contribution += 0.15
+                elif "overly_specific_without_explanation" in reason:
+                    risk_contribution += 0.12
+                elif "sudden_unexplained_introduction" in reason:
+                    risk_contribution += 0.10
+                elif "matches_suspicious_pattern" in reason:
+                    risk_contribution += 0.08
+                else:
+                    risk_contribution += 0.05
+            
+            # Cap at reasonable maximum
+            risk_contribution = min(risk_contribution, 0.25)
             
             explanation = Explanation(
                 signal_type="entity_fabrication",
                 sentence_indices=[entity.sentence_index],
                 description=f"Suspicious entity '{entity.entity}' ({entity.entity_type}): {reasons_text}",
-                risk_contribution=0.1  # Each suspicious entity contributes this much
+                risk_contribution=risk_contribution
             )
             explanations.append(explanation)
         

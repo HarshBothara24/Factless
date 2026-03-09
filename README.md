@@ -30,41 +30,11 @@ FACTLESS operates as a deterministic 7-step pipeline:
 
 ## 🚀 Quick Start
 
-### One-Command Installation
+### Complete System Setup
 
-**Windows:**
-```bash
-install.bat
-```
+**For detailed setup of all components (Backend + Extensions), see [SETUP_GUIDE.md](SETUP_GUIDE.md)**
 
-**Mac/Linux:**
-```bash
-python install.py
-```
-
-This will:
-- Install all dependencies
-- Download required models
-- Optionally setup Gemini API
-- Run tests to verify installation
-
-### Start the Server
-
-**Windows:**
-```bash
-start.bat
-```
-
-**Mac/Linux:**
-```bash
-python start_server.py
-```
-
-Then open: **http://localhost:8000**
-
-### Manual Installation
-
-If you prefer manual setup:
+### Backend & Web Interface
 
 1. **Install dependencies**
    ```bash
@@ -72,27 +42,64 @@ If you prefer manual setup:
    python -m spacy download en_core_web_sm
    ```
 
-2. **Test installation**
+2. **Setup Gemini API (Optional)**
    ```bash
-   python test_api.py
+   python setup_gemini.py
    ```
+   - Get API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+   - System works without API key using fallback responses
 
 3. **Start server**
    ```bash
-   python start_server.py
+   python run_dev.py
    ```
 
-See [QUICKSTART.md](QUICKSTART.md) for detailed instructions and troubleshooting.
+4. **Access the system**
+   - **Web Frontend**: http://localhost:8000
+   - **API Docs**: http://localhost:8000/docs
 
-## 🖥️ Web Interface
+### IDE & Browser Extensions
 
-The included web interface provides:
+- **VS Code Extension**: See [extensions/vscode/README.md](extensions/vscode/README.md)
+- **Chrome Extension**: See [extensions/chrome/README.md](extensions/chrome/README.md)
+
+Both extensions provide real-time hallucination detection for AI-generated content.
+
+## 🖥️ Complete System Components
+
+### 1. Backend API & Web Interface
+
+The core analysis engine with a web-based testing interface:
 
 - **Real-time Analysis**: Instant hallucination risk assessment
 - **Visual Risk Scoring**: Color-coded risk levels (LOW/MEDIUM/HIGH)
 - **Detailed Explanations**: Sentence-level attribution of risk signals
 - **Module Insights**: Optional detailed analysis from each pipeline step
 - **Example Texts**: Pre-loaded examples for testing
+
+### 2. VS Code Extension
+
+Real-time hallucination detection integrated into your IDE:
+
+- Analyze selected code or text with keyboard shortcut
+- Inline warnings for risky AI-generated content
+- GitHub Copilot monitoring
+- Clipboard analysis
+- Detailed analysis reports in side panel
+
+**Installation**: See [extensions/vscode/README.md](extensions/vscode/README.md)
+
+### 3. Chrome Browser Extension
+
+Automatic analysis of AI responses in your browser:
+
+- **Supported Platforms**: ChatGPT, Claude, Gemini, Perplexity AI
+- **Auto-Detection**: Monitors AI responses in real-time
+- **Inline Badges**: Shows risk scores directly on AI responses
+- **Context Menu**: Right-click any text to analyze
+- **Analysis History**: Track recent analyses
+
+**Installation**: See [extensions/chrome/README.md](extensions/chrome/README.md)
 
 ### Features
 
@@ -101,6 +108,7 @@ The included web interface provides:
 - ⚙️ **Module Analysis** showing internal processing details
 - 📝 **Example Library** with different risk levels
 - 🎨 **Responsive Design** for desktop and mobile
+- 🔌 **Multi-Platform**: Web, VS Code, Chrome
 
 ## 🔧 API Usage
 

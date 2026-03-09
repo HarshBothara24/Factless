@@ -121,7 +121,40 @@ class EntityFabricationModule(BaseModule):
         if self._has_inconsistent_usage(entity_info, sentences):
             suspicions.append("inconsistent_usage_pattern")
         
+        # NEW: Check for superlative claims near entity
+        if self._has_superlative_claim_nearby(entity_info, sentences):
+            suspicions.append("superlative_claim_without_evidence")
+        
         return suspicions
+    
+    def _has_superlative_claim_nearby(self, entity_info: Dict, sentences: List[Sentence]) -> bool:
+        """Check if entity appears near superlative claims like 'world's first', 'fastest', etc."""
+        sentence_index = entity_info['sentence_index']
+        
+        # Check current and adjacent sentences
+        check_range = range(max(0, sentence_index - 1), min(len(sentences), sentence_index + 2))
+        
+        superlative_patterns = [
+            r"world'?s first",
+            r"world'?s only",
+            r"world'?s largest",
+            r"world'?s fastest",
+            r"first ever",
+            r"only.*in the world",
+            r"fastest.*in history",
+            r"most advanced",
+            r"revolutionary",
+            r"unprecedented",
+            r"never before",
+        ]
+        
+        for i in check_range:
+            sentence_text = sentences[i].text.lower()
+            for pattern in superlative_patterns:
+                if re.search(pattern, sentence_text):
+                    return True
+        
+        return False
     
     def _check_suspicious_patterns(self, entity_text: str, entity_type: str) -> List[str]:
         """Check entity against known suspicious patterns."""
@@ -144,9 +177,15 @@ class EntityFabricationModule(BaseModule):
         specificity_indicators = [
             len(entity_text) > 30,  # Very long entity names
             len(entity_text.split()) > 4,  # Multi-word complex names
-            re.search(r'\d{4,}', entity_text),  # Long numbers
+            re.search(r'\d{4,}', entity_text),  # Long numbers (like years)
             re.search(r'\d+\.\d{3,}', entity_text),  # Very precise decimals
+            re.search(r'\d{3,}\s*km/h', entity_text),  # Specific speeds
+            re.search(r'\d{4}', entity_text) and entity_type == 'DATE',  # Historical dates
         ]
+        
+        # Historical dates (especially old ones) are highly suspicious without context
+        if entity_type == 'DATE' and re.search(r'18\d{2}|19[0-4]\d', entity_text):
+            specificity_indicators.append(True)
         
         if not any(specificity_indicators):
             return False
@@ -175,7 +214,7 @@ class EntityFabricationModule(BaseModule):
     
     def _is_academic_fabrication(self, entity_text: str, entity_type: str) -> bool:
         """Check for academic-style fabricated references."""
-        if entity_type not in ['PERSON', 'ORG', 'WORK_OF_ART']:
+        if entity_type not in ['PERSON', 'ORG', 'WORK_OF_ART', 'GPE', 'FAC']:
             return False
         
         # Patterns that suggest fabricated academic content
@@ -190,6 +229,18 @@ class EntityFabricationModule(BaseModule):
         for pattern in academic_fabrication_patterns:
             if re.match(pattern, entity_text):
                 return True
+        
+        # Check for suspicious person names with specific patterns
+        if entity_type == 'PERSON':
+            # Full names with uncommon patterns (potential fabrication)
+            if re.match(r'^[A-Z][a-z]+ [A-Z][a-z]+$', entity_text):
+                # Names that appear in technical/historical contexts are suspicious
+                return True
+        
+        # Check for suspicious location/facility names
+        if entity_type in ['GPE', 'FAC']:
+            # Cities with "world's first" claims nearby are suspicious
+            return True
         
         return False
     
@@ -262,7 +313,7 @@ class EntityFabricationModule(BaseModule):
         
         # Base risk from proportion of suspicious entities
         suspicious_ratio = len(suspicious_entities) / total_entities
-        risk_score += suspicious_ratio * 0.5
+        risk_score += suspicious_ratio * 0.6  # Increased from 0.5
         
         # Additional risk from severity of suspicions
         for entity in suspicious_entities:
@@ -270,22 +321,30 @@ class EntityFabricationModule(BaseModule):
             
             for reason in entity.suspicion_reasons:
                 if "academic_style_fabrication" in reason:
-                    severity_weight += 0.3
+                    severity_weight += 0.4  # Increased from 0.3
                 elif "overly_specific_without_explanation" in reason:
-                    severity_weight += 0.2
+                    severity_weight += 0.3  # Increased from 0.2
                 elif "sudden_unexplained_introduction" in reason:
-                    severity_weight += 0.15
+                    severity_weight += 0.25  # Increased from 0.15
                 elif "inconsistent_usage_pattern" in reason:
-                    severity_weight += 0.1
+                    severity_weight += 0.15  # Increased from 0.1
                 else:
-                    severity_weight += 0.05
+                    severity_weight += 0.1  # Increased from 0.05
             
             # Normalize by total entities and add to risk
-            risk_score += severity_weight / total_entities
+            risk_score += severity_weight / max(total_entities, 3)  # Cap denominator at 3
         
         # Bonus risk if many entities are suspicious
-        if len(suspicious_entities) > 3:
-            risk_score += 0.2
+        if len(suspicious_entities) > 2:  # Lowered from 3
+            risk_score += 0.3  # Increased from 0.2
+        
+        # Extra penalty for multiple fabrication types
+        unique_reasons = set()
+        for entity in suspicious_entities:
+            unique_reasons.update(entity.suspicion_reasons)
+        
+        if len(unique_reasons) > 2:
+            risk_score += 0.2  # Multiple types of fabrication
         
         return min(1.0, risk_score)
     

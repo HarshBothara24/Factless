@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>FACTLESS Settings</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background-color: #f9fafb;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            margin: 0 0 10px 0;
+            color: #111827;
+        }
+
+        .header p {
+            color: #6b7280;
+            margin: 0;
+        }
+
+        .settings-container {
+            background-color: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .setting-group {
+            margin-bottom: 30px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .setting-group:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .setting-label {
+            font-size: 16px;
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .setting-description {
+            font-size: 14px;
+            color: #6b7280;
+            margin-bottom: 12px;
+        }
+
+        .setting-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+
+        .setting-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .checkbox-container input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .radio-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .radio-option input[type="radio"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .save-button {
+            width: 100%;
+            padding: 12px;
+            background-color: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .save-button:hover {
+            background-color: #5568d3;
+        }
+
+        .save-button:active {
+            transform: scale(0.98);
+        }
+
+        .status-message {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 14px;
+            display: none;
+        }
+
+        .status-message.success {
+            background-color: #d1fae5;
+            color: #065f46;
+            display: block;
+        }
+
+        .status-message.error {
+            background-color: #fee2e2;
+            color: #991b1b;
+            display: block;
+        }
+
+        .test-connection {
+            margin-top: 10px;
+        }
+
+        .test-button {
+            padding: 8px 16px;
+            background-color: #f3f4f6;
+            color: #374151;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .test-button:hover {
+            background-color: #e5e7eb;
+        }
+
+        .connection-status {
+            display: inline-block;
+            margin-left: 10px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛡️ FACTLESS Settings</h1>
+        <p>Configure your AI reliability checker</p>
+    </div>
+
+    <div class="settings-container">
+        <form id="settingsForm">
+            <div class="setting-group">
+                <label class="setting-label" for="apiUrl">API Server URL</label>
+                <div class="setting-description">
+                    The URL of your FACTLESS API server (default: http://localhost:8000)
+                </div>
+                <input 
+                    type="text" 
+                    id="apiUrl" 
+                    class="setting-input" 
+                    placeholder="http://localhost:8000"
+                    value="http://localhost:8000"
+                >
+                <div class="test-connection">
+                    <button type="button" class="test-button" id="testConnection">
+                        Test Connection
+                    </button>
+                    <span class="connection-status" id="connectionStatus"></span>
+                </div>
+            </div>
+
+            <div class="setting-group">
+                <label class="setting-label">Auto-Analysis</label>
+                <div class="setting-description">
+                    Automatically analyze AI responses as they appear
+                </div>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="autoAnalyze" checked>
+                    <label for="autoAnalyze">Enable automatic analysis</label>
+                </div>
+            </div>
+
+            <div class="setting-group">
+                <label class="setting-label">Risk Threshold</label>
+                <div class="setting-description">
+                    Minimum risk level to show warnings
+                </div>
+                <div class="radio-group">
+                    <div class="radio-option">
+                        <input type="radio" id="thresholdLow" name="riskThreshold" value="low">
+                        <label for="thresholdLow">Low</label>
+                    </div>
+                    <div class="radio-option">
+                        <input type="radio" id="thresholdMedium" name="riskThreshold" value="medium" checked>
+                        <label for="thresholdMedium">Medium</label>
+                    </div>
+                    <div class="radio-option">
+                        <input type="radio" id="thresholdHigh" name="riskThreshold" value="high">
+                        <label for="thresholdHigh">High</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="setting-group">
+                <label class="setting-label">Display Options</label>
+                <div class="setting-description">
+                    Customize how analysis results are displayed
+                </div>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="showInlineWarnings" checked>
+                    <label for="showInlineWarnings">Show inline warnings on AI responses</label>
+                </div>
+            </div>
+
+            <button type="submit" class="save-button">Save Settings</button>
+            
+            <div class="status-message" id="statusMessage"></div>
+        </form>
+    </div>
+
+    <script src="options.js"></script>
+</body>
+</html>
