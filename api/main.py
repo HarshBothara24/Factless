@@ -156,7 +156,8 @@ async def analyze_text(request: AnalysisRequest):
                 "logical_flaw_count": len(result.logical_flow.logical_flaws),
                 "overconfidence_signals": len(result.overconfidence_analysis.overconfidence_signals),
                 "claim_density": result.claim_density.claim_density,
-                "suspicious_entities": len(result.entity_fabrication.suspicious_entities)
+                "suspicious_entities": len(result.entity_fabrication.suspicious_entities),
+                "plausibility_signals": len(result.plausibility_analysis.signals)
             }
         
         return AnalysisResponse(**response_data)
@@ -221,7 +222,8 @@ async def analyze_batch(request: BatchAnalysisRequest):
                         "logical_flaw_count": len(result.logical_flow.logical_flaws),
                         "overconfidence_signals": len(result.overconfidence_analysis.overconfidence_signals),
                         "claim_density": result.claim_density.claim_density,
-                        "suspicious_entities": len(result.entity_fabrication.suspicious_entities)
+                        "suspicious_entities": len(result.entity_fabrication.suspicious_entities),
+                        "plausibility_signals": len(result.plausibility_analysis.signals)
                     }
                 
                 results.append(AnalysisResponse(**response_data))

@@ -2,17 +2,19 @@
 Configuration settings for FACTLESS analysis engine.
 """
 
+import os
 from typing import Dict, Any
 from pydantic import BaseModel
 
 
 class ModuleWeights(BaseModel):
     """Weights for combining module scores into final risk score."""
-    contradiction: float = 0.20
-    logical_flow: float = 0.15
-    overconfidence: float = 0.15
+    contradiction: float = 0.15
+    logical_flow: float = 0.10
+    overconfidence: float = 0.10
     claim_density: float = 0.10
-    entity_fabrication: float = 0.40  # Increased - fabricated entities are strong indicators
+    entity_fabrication: float = 0.25
+    plausibility_analysis: float = 0.30  # NEW - highest weight for plausibility issues
 
 
 class RiskThresholds(BaseModel):
@@ -78,10 +80,10 @@ class FactlessConfig(BaseModel):
     entity_fabrication: EntityFabricationConfig = EntityFabricationConfig()
     
     # LLM settings for claim extraction
-    claim_extraction_model: str = "gemini-3.0-flash"  # Configurable
+    claim_extraction_model: str = "gemini-2.5-flash"  # Configurable
     claim_extraction_temperature: float = 0.0
     claim_extraction_max_tokens: int = 200
-    gemini_api_key: str = ""  # Set via environment variable
+    gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")  # Load from environment variable
     
     # Performance settings
     max_text_length: int = 10000  # Characters

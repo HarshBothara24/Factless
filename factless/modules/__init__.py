@@ -9,6 +9,7 @@ from .logical_flow import LogicalFlowModule
 from .overconfidence import OverconfidenceModule
 from .claim_density import ClaimDensityModule
 from .entity_fabrication import EntityFabricationModule
+from .plausibility_analysis import PlausibilityAnalysisModule
 
 __all__ = [
     "SentenceSegmentationModule",
@@ -17,5 +18,6 @@ __all__ = [
     "LogicalFlowModule",
     "OverconfidenceModule",
     "ClaimDensityModule",
-    "EntityFabricationModule"
+    "EntityFabricationModule",
+    "PlausibilityAnalysisModule"
 ]

@@ -1,209 +1,186 @@
-# FACTLESS Scoring Improvements
+# FACTLESS Scoring System Improvements
 
 ## Problem Identified
 
-**Test Case**: 
-> "In 1897, the city of Pune installed the world's first underground solar-powered railway system designed by engineer Arvind Deshmukh..."
-
-**Previous Result**: Risk Score = 0.178 (LOW) ❌  
-**Expected**: Risk Score should be HIGH ✅
+The original scoring system was too conservative and not properly detecting heavily hallucinated content. A completely fabricated text with multiple suspicious entities was only scoring 0.400 (MEDIUM risk) when it should have been HIGH risk.
 
 ## Root Causes
 
-1. **Entity Fabrication weight too low** (25% → should be higher)
-2. **Risk thresholds too lenient** (LOW < 0.3, HIGH > 0.7)
-3. **Entity fabrication scoring too conservative**
-4. **Missing detection patterns** for "world's first", "designed by", etc.
-5. **Claim extraction not thorough enough**
+1. **Linear scaling was too conservative** - Each issue only added small incremental risk
+2. **Entity fabrication scoring was insufficient** - Multiple fabricated entities weren't penalized enough
+3. **Risk thresholds were too high** - 0.7 threshold for HIGH risk was too lenient
+4. **Module weights didn't reflect importance** - Entity fabrication is a strong hallucination indicator
+5. **No amplification for multiple signals** - Multiple modules detecting issues should compound risk
 
-## Changes Made
+## Improvements Made
 
-### 1. Adjusted Module Weights (`factless/config.py`)
+### 1. Enhanced Scoring Algorithm (`factless/scoring.py`)
 
-**Before**:
+**Before:**
 ```python
-contradiction: 0.25
-logical_flow: 0.20
-overconfidence: 0.15
-claim_density: 0.15
-entity_fabrication: 0.25
+# Linear scaling - too conservative
+contradiction_score = len(contradictions) * 0.25  # Max 1.0 after 4 contradictions
+logical_flow_score = len(flaws) * 0.20           # Max 1.0 after 5 flaws
 ```
 
-**After**:
+**After:**
 ```python
-contradiction: 0.20
-logical_flow: 0.15
-overconfidence: 0.15
-claim_density: 0.10
-entity_fabrication: 0.40  # ⬆️ Increased significantly
+# Progressive scaling - more realistic
+if contradiction_count == 1:
+    contradiction_score = 0.4  # Single contradiction is already concerning
+elif contradiction_count == 2:
+    contradiction_score = 0.7  # Two contradictions is high risk
+else:
+    contradiction_score = 1.0  # Three or more is maximum risk
 ```
 
-**Rationale**: Fabricated entities (fake names, dates, places) are the strongest hallucination indicators.
+### 2. Entity Fabrication Amplification
 
-### 2. Lowered Risk Thresholds (`factless/config.py`)
+**New logic:**
+- 4+ suspicious entities = 1.5x multiplier (very high risk)
+- 2-3 suspicious entities = 1.3x multiplier (high risk)
+- Minimum score of 0.75 for 4+ suspicious entities
 
-**Before**:
+### 3. Multi-Module Risk Amplification
+
+**New feature:**
 ```python
-low_threshold: 0.3   # Below = LOW
-high_threshold: 0.7  # Above = HIGH
+# Progressive multipliers for multiple active modules
+if active_modules >= 4:  # 4+ modules = very likely hallucinated
+    final_score = min(1.0, final_score * 1.4)
+elif active_modules >= 3:  # 3 modules = likely hallucinated
+    final_score = min(1.0, final_score * 1.25)
+elif active_modules >= 2:  # 2 modules = concerning
+    final_score = min(1.0, final_score * 1.15)
 ```
 
-**After**:
+### 4. Adjusted Risk Thresholds (`factless/config.py`)
+
+**Before:**
 ```python
-low_threshold: 0.25  # Below = LOW
-high_threshold: 0.60 # Above = HIGH
+low_threshold: float = 0.3   # LOW risk
+high_threshold: float = 0.7  # HIGH risk
 ```
 
-**Rationale**: More sensitive detection, catches medium-risk content earlier.
-
-### 3. Enhanced Entity Fabrication Scoring (`factless/modules/entity_fabrication.py`)
-
-**Improvements**:
-- Increased base suspicious ratio weight: 0.5 → 0.6
-- Increased severity weights:
-  - Academic fabrication: 0.3 → 0.4
-  - Overly specific: 0.2 → 0.3
-  - Sudden introduction: 0.15 → 0.25
-- Lowered threshold for bonus risk: 3 → 2 entities
-- Added penalty for multiple fabrication types
-- Capped denominator to prevent dilution with many entities
-
-### 4. Added Suspicious Patterns (`factless/config.py`)
-
-**New patterns detected**:
+**After:**
 ```python
-r"world'?s? first"              # "world's first"
-r"first ever"                   # "first ever"
-r"invented by [Name]"           # Invention claims
-r"designed by [Name]"           # Design claims
-r"discovered by [Name]"         # Discovery claims
+low_threshold: float = 0.25  # LOW risk (more sensitive)
+high_threshold: float = 0.60 # HIGH risk (more sensitive)
 ```
 
-### 5. Enhanced Overconfidence Detection (`factless/config.py`)
+### 5. Rebalanced Module Weights
 
-**New absolute terms**:
+**Before:**
 ```python
-"first ever", "world's first", "only", "sole", 
-"unique", "exclusively", "invariably", "unfailingly"
+contradiction: float = 0.25
+logical_flow: float = 0.20
+overconfidence: float = 0.15
+claim_density: float = 0.15
+entity_fabrication: float = 0.25
 ```
 
-**New uncertainty markers**:
+**After:**
 ```python
-"reportedly", "allegedly", "claimed", "purportedly"
+contradiction: float = 0.20
+logical_flow: float = 0.15
+overconfidence: float = 0.15
+claim_density: float = 0.10
+entity_fabrication: float = 0.40  # Increased - strong hallucination indicator
 ```
 
-### 6. Improved Claim Extraction Prompt (`factless/modules/claim_extraction.py`)
+### 6. Enhanced Entity Fabrication Detection (`factless/modules/entity_fabrication.py`)
 
-**Enhanced instructions**:
-- "Extract EVERY claim" (not just some)
-- "Include claims about historical events, people, places, inventions"
-- "Mark specific numbers, dates, and proper nouns as separate claims"
-- "Be thorough" emphasis
+**Improvements:**
+- More aggressive academic fabrication patterns
+- Better detection of suspicious person names
+- Enhanced organization name patterns
+- Increased severity weights for different fabrication types
 
-## Expected Impact
-
-### Test Case Re-analysis
-
-**Text**: "In 1897, the city of Pune installed the world's first underground solar-powered railway system designed by engineer Arvind Deshmukh..."
-
-**Expected Detection**:
-1. ✅ Entity: "1897" - suspicious year
-2. ✅ Entity: "Pune" - sudden introduction
-3. ✅ Entity: "Arvind Deshmukh" - fabricated person
-4. ✅ Pattern: "world's first" - overconfident claim
-5. ✅ Pattern: "designed by" - suspicious attribution
-6. ✅ Multiple entities without explanation
-
-**Expected Score**: 0.50 - 0.75 (MEDIUM to HIGH)
-
-### Score Breakdown
-
-With 3 suspicious entities detected:
-
-```
-Entity Fabrication Score:
-- Base (3/5 entities): 0.6 * 0.6 = 0.36
-- Severity weights: ~0.3
-- Multiple types bonus: 0.2
-- Total: ~0.86 (capped at 1.0)
-
-Final Risk Score:
-- Entity fabrication: 0.40 * 0.86 = 0.344
-- Overconfidence: 0.15 * 0.3 = 0.045
-- Other modules: ~0.1
-- Total: ~0.49 (MEDIUM)
-
-With better claim extraction:
-- More claims detected → higher density
-- More contradictions possible
-- Final score: 0.55 - 0.70 (MEDIUM to HIGH)
+**New patterns added:**
+```python
+fabricated_patterns = [
+    r'^John [A-Z][a-z]+$',
+    r'^Jane [A-Z][a-z]+$', 
+    r'^Dr\. [A-Z][a-z]+ [A-Z][a-z]+$',
+    r'^Professor [A-Z][a-z]+ [A-Z][a-z]+$',
+    # ... more patterns
+]
 ```
 
-## Testing the Improvements
+### 7. Improved Risk Score Calculation
 
-### Restart Backend
+**New calculation method:**
+```python
+# Base risk from proportion of suspicious entities
+suspicious_ratio = len(suspicious_entities) / total_entities
+risk_score += suspicious_ratio * 0.6  # Increased from 0.5
 
-```bash
-# The changes are in Python files, so restart the server
-python run_dev.py
+# Severity weights increased across the board
+if "academic_style_fabrication" in reason:
+    severity_weight += 0.4  # Increased from 0.3
+elif "overly_specific_without_explanation" in reason:
+    severity_weight += 0.3  # Increased from 0.2
+# ... etc
 ```
 
-### Test Cases
+### 8. Enhanced Claim Extraction Prompt
 
-**1. Obvious Fabrication (should be HIGH)**:
-```
-In 1897, the city of Pune installed the world's first underground 
-solar-powered railway system designed by engineer Arvind Deshmukh.
-```
-Expected: Risk > 0.60 (HIGH)
+**Improved prompt for better detection:**
+- More specific instructions for fabricated content
+- Better detection of historical claims and specific details
+- Enhanced confidence marker detection
 
-**2. Subtle Fabrication (should be MEDIUM)**:
-```
-The Pune railway system, developed in the late 1800s, used innovative 
-solar technology that was ahead of its time.
-```
-Expected: Risk 0.25 - 0.60 (MEDIUM)
+## Expected Results
 
-**3. Legitimate Content (should be LOW)**:
-```
-Solar-powered transportation systems have been developed in various 
-cities around the world, with varying degrees of success.
-```
-Expected: Risk < 0.25 (LOW)
+With these improvements, the same heavily hallucinated text should now score:
 
-## Verification
+**Before:** 0.400 (MEDIUM risk)
+**After:** 0.65-0.85 (HIGH risk)
 
-After restarting the backend, test with the original text:
+### Scoring Breakdown Example
 
-1. Go to http://localhost:8000
-2. Paste the Pune railway text
-3. Click "Analyze Text"
-4. Check results:
-   - Risk Score should be > 0.50
-   - Risk Level should be MEDIUM or HIGH
-   - Should show multiple entity fabrication signals
+For text with 4+ suspicious entities:
+1. **Entity Fabrication Score**: 0.8 (high due to multiple entities)
+2. **Entity Amplification**: 1.5x multiplier
+3. **Module Weight**: 0.40 (increased importance)
+4. **Multi-Module Amplification**: 1.25x (if 3+ modules active)
+5. **Minimum Floor**: 0.75 for 4+ suspicious entities
 
-## Fine-Tuning
+**Final Score**: ~0.75-0.85 (HIGH risk)
 
-If scores are still too low/high, adjust in `factless/config.py`:
+## Testing
+
+To test the improvements:
+
+1. **Use the high-risk example text** with multiple fabricated entities
+2. **Expected result**: Risk score > 0.60 (HIGH risk)
+3. **Check explanations**: Should show multiple entity fabrication signals
+4. **Verify amplification**: Multiple modules should be active
+
+## Configuration
+
+The new scoring can be fine-tuned via `factless/config.py`:
 
 ```python
-# Make more sensitive
-entity_fabrication: float = 0.45  # Increase weight
-high_threshold: float = 0.55      # Lower threshold
+# Adjust risk thresholds
+risk_thresholds.low_threshold = 0.25
+risk_thresholds.high_threshold = 0.60
 
-# Make less sensitive  
-entity_fabrication: float = 0.35  # Decrease weight
-high_threshold: float = 0.65      # Raise threshold
+# Adjust module weights
+module_weights.entity_fabrication = 0.40
+
+# Adjust entity fabrication sensitivity
+entity_fabrication.suspicious_patterns = [...]
 ```
+
+## Validation
+
+The improvements maintain the core principles:
+- ✅ **Explainable**: All risk signals are still attributable
+- ✅ **Deterministic**: Same input produces same output
+- ✅ **No external data**: Still uses only internal patterns
+- ✅ **Ethical**: Still only provides risk assessment, not truth claims
 
 ## Summary
 
-These changes make FACTLESS:
-- ✅ More sensitive to fabricated entities
-- ✅ Better at detecting "world's first" type claims
-- ✅ More thorough in claim extraction
-- ✅ More aggressive in scoring obvious fabrications
-- ✅ Still balanced for legitimate content
-
-The system should now correctly identify the Pune railway text as HIGH risk! 🎯
+These improvements make FACTLESS much more effective at detecting heavily hallucinated content while maintaining its explainable and ethical approach. The system now properly escalates risk when multiple fabrication signals are detected, which is the hallmark of AI-generated hallucinations.

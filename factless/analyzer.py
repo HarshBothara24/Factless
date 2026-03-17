@@ -15,7 +15,8 @@ from .modules import (
     LogicalFlowModule,
     OverconfidenceModule,
     ClaimDensityModule,
-    EntityFabricationModule
+    EntityFabricationModule,
+    PlausibilityAnalysisModule
 )
 
 
@@ -34,6 +35,7 @@ class FactlessAnalyzer:
         self.overconfidence = OverconfidenceModule(self.config)
         self.claim_density = ClaimDensityModule(self.config)
         self.entity_fabrication = EntityFabricationModule(self.config)
+        self.plausibility_analysis = PlausibilityAnalysisModule(self.config)
         
         # Initialize scorer
         self.scorer = FactlessScorer(self.config)
@@ -99,6 +101,10 @@ class FactlessAnalyzer:
             logger.info("Step 7: Entity Fabrication Detection")
             entity_fabrication_result = self.entity_fabrication.process(sentence_result.sentences)
             
+            # Step 8: Plausibility Analysis (NEW)
+            logger.info("Step 8: Plausibility Analysis")
+            plausibility_result = self.plausibility_analysis.process(sentence_result.sentences)
+            
             # Final Scoring and Explanation Generation
             logger.info("Generating final score and explanations")
             total_processing_time = (time.time() - start_time) * 1000
@@ -112,6 +118,7 @@ class FactlessAnalyzer:
                 overconfidence_result,
                 claim_density_result,
                 entity_fabrication_result,
+                plausibility_result,
                 total_processing_time
             )
             

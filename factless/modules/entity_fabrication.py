@@ -224,6 +224,9 @@ class EntityFabricationModule(BaseModule):
             r'^Journal of [A-Z][a-z]+( [A-Z][a-z]+)*$',  # "Journal of Something"
             r'^[A-Z][a-z]+ University$',  # "Something University"
             r'^[A-Z][a-z]+ Institute$',  # "Something Institute"
+            r'^University of [A-Z][a-z]+$',  # "University of Something"
+            r'^[A-Z][a-z]+ Research Center$',  # "Something Research Center"
+            r'^[A-Z][a-z]+ Laboratory$',  # "Something Laboratory"
         ]
         
         for pattern in academic_fabrication_patterns:
@@ -232,15 +235,36 @@ class EntityFabricationModule(BaseModule):
         
         # Check for suspicious person names with specific patterns
         if entity_type == 'PERSON':
-            # Full names with uncommon patterns (potential fabrication)
+            # Full names that appear in technical contexts are often fabricated
             if re.match(r'^[A-Z][a-z]+ [A-Z][a-z]+$', entity_text):
-                # Names that appear in technical/historical contexts are suspicious
-                return True
+                # Common fabricated name patterns
+                fabricated_patterns = [
+                    r'^John [A-Z][a-z]+$',
+                    r'^Jane [A-Z][a-z]+$', 
+                    r'^Dr\. [A-Z][a-z]+ [A-Z][a-z]+$',
+                    r'^Professor [A-Z][a-z]+ [A-Z][a-z]+$',
+                    r'^[A-Z][a-z]+ Smith$',
+                    r'^[A-Z][a-z]+ Johnson$',
+                    r'^[A-Z][a-z]+ Williams$',
+                ]
+                
+                for pattern in fabricated_patterns:
+                    if re.match(pattern, entity_text):
+                        return True
         
-        # Check for suspicious location/facility names
-        if entity_type in ['GPE', 'FAC']:
-            # Cities with "world's first" claims nearby are suspicious
-            return True
+        # Check for suspicious organization names
+        if entity_type == 'ORG':
+            suspicious_org_patterns = [
+                r'Institute of [A-Z][a-z]+',
+                r'Center for [A-Z][a-z]+',
+                r'Foundation for [A-Z][a-z]+',
+                r'Society of [A-Z][a-z]+',
+                r'Association of [A-Z][a-z]+',
+            ]
+            
+            for pattern in suspicious_org_patterns:
+                if re.search(pattern, entity_text):
+                    return True
         
         return False
     

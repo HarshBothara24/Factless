@@ -108,6 +108,20 @@ class EntityFabricationResult(ModuleResult):
     fabrication_risk_score: float  # 0-1
 
 
+class PlausibilitySignal(BaseModel):
+    """Plausibility issue detected in text."""
+    signal_type: str
+    sentence_index: int
+    description: str
+    severity: float  # 0.0 to 1.0
+
+
+class PlausibilityAnalysisResult(ModuleResult):
+    """Results from plausibility analysis module."""
+    signals: List[PlausibilitySignal]
+    plausibility_risk_score: float  # 0-1
+
+
 class Explanation(BaseModel):
     """Human-readable explanation of a risk signal."""
     signal_type: str
@@ -130,6 +144,7 @@ class AnalysisResult(BaseModel):
     overconfidence_analysis: OverconfidenceResult
     claim_density: ClaimDensityResult
     entity_fabrication: EntityFabricationResult
+    plausibility_analysis: PlausibilityAnalysisResult
     
     # Metadata
     total_processing_time_ms: float

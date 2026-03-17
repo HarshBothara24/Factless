@@ -12,7 +12,8 @@ from datetime import datetime
 from .models import (
     AnalysisResult, RiskLevel, Explanation,
     SentenceSegmentationResult, ClaimExtractionResult, ContradictionDetectionResult,
-    LogicalFlowResult, OverconfidenceResult, ClaimDensityResult, EntityFabricationResult
+    LogicalFlowResult, OverconfidenceResult, ClaimDensityResult, EntityFabricationResult,
+    PlausibilityAnalysisResult
 )
 from .config import FactlessConfig
 
@@ -31,48 +32,118 @@ class ScoringEngine:
         logical_flow_result: LogicalFlowResult,
         overconfidence_result: OverconfidenceResult,
         claim_density_result: ClaimDensityResult,
-        entity_fabrication_result: EntityFabricationResult
+        entity_fabrication_result: EntityFabricationResult,
+        plausibility_result: PlausibilityAnalysisResult
     ) -> float:
-        """Calculate weighted final risk score."""
+        """Calculate weighted final risk score with new plausibility analysis."""
         
-        # Extract individual module scores
-        contradiction_score = len(contradiction_result.contradictions) * 0.25  # Increased from 0.2
-        contradiction_score = min(1.0, contradiction_score)
+        # Extract individual module scores with improved scaling
         
-        logical_flow_score = len(logical_flow_result.logical_flaws) * 0.20  # Increased from 0.15
-        logical_flow_score = min(1.0, logical_flow_score)
+        # Contradictions: Each contradiction is serious, scale more aggressively
+        contradiction_count = len(contradiction_result.contradictions)
+        if contradiction_count == 0:
+            contradiction_score = 0.0
+        elif contradiction_count == 1:
+            contradiction_score = 0.4  # Single contradiction is already concerning
+        elif contradiction_count == 2:
+            contradiction_score = 0.7  # Two contradictions is high risk
+        else:
+            contradiction_score = 1.0  # Three or more is maximum risk
         
+        # Logical flaws: Similar aggressive scaling
+        logical_flaw_count = len(logical_flow_result.logical_flaws)
+        if logical_flaw_count == 0:
+            logical_flow_score = 0.0
+        elif logical_flaw_count == 1:
+            logical_flow_score = 0.3
+        elif logical_flaw_count == 2:
+            logical_flow_score = 0.6
+        else:
+            logical_flow_score = 1.0
+        
+        # Overconfidence: Use existing score but boost if very high
         overconfidence_score = overconfidence_result.avg_confidence_score
+        if overconfidence_score > 0.7:
+            overconfidence_score = min(1.0, overconfidence_score * 1.2)
         
+        # Claim density: Use existing score
         claim_density_score = claim_density_result.density_risk_score
         
+        # Entity fabrication: This is the key issue - boost significantly for multiple entities
         entity_fabrication_score = entity_fabrication_result.fabrication_risk_score
+        suspicious_entity_count = len(entity_fabrication_result.suspicious_entities)
         
-        # Weighted combination
+        # Boost entity fabrication score based on count and severity
+        if suspicious_entity_count >= 4:  # 4+ suspicious entities = very high risk
+            entity_fabrication_score = min(1.0, entity_fabrication_score * 1.5)
+        elif suspicious_entity_count >= 2:  # 2-3 suspicious entities = high risk
+            entity_fabrication_score = min(1.0, entity_fabrication_score * 1.3)
+        
+        # NEW: Plausibility analysis - this is the most important for detecting fabricated content
+        plausibility_score = plausibility_result.plausibility_risk_score
+        plausibility_signal_count = len(plausibility_result.signals)
+        
+        # Weighted combination with new plausibility analysis
         final_score = (
             self.weights.contradiction * contradiction_score +
             self.weights.logical_flow * logical_flow_score +
             self.weights.overconfidence * overconfidence_score +
             self.weights.claim_density * claim_density_score +
-            self.weights.entity_fabrication * entity_fabrication_score
+            self.weights.entity_fabrication * entity_fabrication_score +
+            self.weights.plausibility_analysis * plausibility_score
         )
         
-        # Bonus multiplier if multiple high-risk signals detected
-        high_risk_signals = 0
-        if entity_fabrication_score > 0.6:
-            high_risk_signals += 1
-        if contradiction_score > 0.5:
-            high_risk_signals += 1
-        if overconfidence_score > 0.5:
-            high_risk_signals += 1
-        if claim_density_score > 0.7:
-            high_risk_signals += 1
+        # Hallucination amplification: If multiple modules detect issues, it's likely hallucinated
+        active_modules = 0
+        if contradiction_score > 0.2:
+            active_modules += 1
+        if logical_flow_score > 0.2:
+            active_modules += 1
+        if overconfidence_score > 0.3:
+            active_modules += 1
+        if claim_density_score > 0.3:
+            active_modules += 1
+        if entity_fabrication_score > 0.4:
+            active_modules += 1
+        if plausibility_score > 0.4:  # NEW
+            active_modules += 1
         
-        # Apply multiplier for multiple high-risk signals
-        if high_risk_signals >= 2:
-            final_score = min(1.0, final_score * 1.15)  # 15% boost
-        elif high_risk_signals >= 3:
-            final_score = min(1.0, final_score * 1.25)  # 25% boost
+        # Apply progressive multipliers for multiple active modules
+        if active_modules >= 5:  # 5+ modules detecting issues = very likely hallucinated
+            final_score = min(1.0, final_score * 1.5)
+        elif active_modules >= 4:  # 4+ modules = very likely hallucinated
+            final_score = min(1.0, final_score * 1.4)
+        elif active_modules >= 3:  # 3 modules = likely hallucinated
+            final_score = min(1.0, final_score * 1.25)
+        elif active_modules >= 2:  # 2 modules = concerning
+            final_score = min(1.0, final_score * 1.15)
+        
+        # Special case: If we have many suspicious entities (4+), this is almost certainly fabricated
+        if suspicious_entity_count >= 4:
+            final_score = max(final_score, 0.75)  # Minimum 0.75 for 4+ suspicious entities
+        
+        # NEW: Special case for plausibility issues - these are strong indicators of fabrication
+        if plausibility_signal_count >= 5:
+            final_score = max(final_score, 0.85)  # Minimum 0.85 for 5+ plausibility issues
+        elif plausibility_signal_count >= 4:
+            final_score = max(final_score, 0.80)  # Minimum 0.80 for 4+ plausibility issues
+        elif plausibility_signal_count >= 3:
+            final_score = max(final_score, 0.75)  # Minimum 0.75 for 3+ plausibility issues
+        
+        # Additional boost for very high plausibility scores (0.85+)
+        if plausibility_score >= 0.85:
+            final_score = max(final_score, 0.85)  # If plausibility module is very confident, trust it
+        
+        # Special case: High entity fabrication + high plausibility = almost certainly fabricated
+        if entity_fabrication_score >= 0.8 and plausibility_score >= 0.8:
+            final_score = max(final_score, 0.90)  # Both modules agree = very high confidence
+        
+        # NEW: Special combinations that strongly indicate fabrication
+        timeline_mismatch = any(s.signal_type == "TIMELINE_MISMATCH" for s in plausibility_result.signals)
+        impossible_tech = any(s.signal_type == "IMPOSSIBLE_TECH_COMBINATION" for s in plausibility_result.signals)
+        
+        if timeline_mismatch and impossible_tech:
+            final_score = max(final_score, 0.80)  # Futuristic tech + past timeline = very suspicious
         
         return min(1.0, final_score)
     
@@ -99,7 +170,8 @@ class ExplainabilityGenerator:
         logical_flow_result: LogicalFlowResult,
         overconfidence_result: OverconfidenceResult,
         claim_density_result: ClaimDensityResult,
-        entity_fabrication_result: EntityFabricationResult
+        entity_fabrication_result: EntityFabricationResult,
+        plausibility_result: PlausibilityAnalysisResult
     ) -> List[Explanation]:
         """Generate explanations for all detected risk signals."""
         
@@ -119,6 +191,9 @@ class ExplainabilityGenerator:
         
         # Entity fabrication explanations
         explanations.extend(self._explain_entity_fabrication(entity_fabrication_result))
+        
+        # NEW: Plausibility explanations
+        explanations.extend(self._explain_plausibility_issues(plausibility_result))
         
         return explanations
     
@@ -231,6 +306,21 @@ class ExplainabilityGenerator:
         }
         
         return risk_weights.get(flaw_type, 0.10)
+    
+    def _explain_plausibility_issues(self, result: PlausibilityAnalysisResult) -> List[Explanation]:
+        """Generate explanations for plausibility issues."""
+        explanations = []
+        
+        for signal in result.signals:
+            explanation = Explanation(
+                signal_type="plausibility_issue",
+                sentence_indices=[signal.sentence_index],
+                description=signal.description,
+                risk_contribution=signal.severity * 0.3  # Scale by severity
+            )
+            explanations.append(explanation)
+        
+        return explanations
 
 
 class FactlessScorer:
@@ -251,6 +341,7 @@ class FactlessScorer:
         overconfidence_result: OverconfidenceResult,
         claim_density_result: ClaimDensityResult,
         entity_fabrication_result: EntityFabricationResult,
+        plausibility_result: PlausibilityAnalysisResult,
         total_processing_time: float
     ) -> AnalysisResult:
         """Create final analysis result with scoring and explanations."""
@@ -261,7 +352,8 @@ class FactlessScorer:
             logical_flow_result,
             overconfidence_result,
             claim_density_result,
-            entity_fabrication_result
+            entity_fabrication_result,
+            plausibility_result
         )
         
         # Determine risk level
@@ -274,7 +366,8 @@ class FactlessScorer:
             logical_flow_result,
             overconfidence_result,
             claim_density_result,
-            entity_fabrication_result
+            entity_fabrication_result,
+            plausibility_result
         )
         
         # Create final result
@@ -289,6 +382,7 @@ class FactlessScorer:
             overconfidence_analysis=overconfidence_result,
             claim_density=claim_density_result,
             entity_fabrication=entity_fabrication_result,
+            plausibility_analysis=plausibility_result,
             total_processing_time_ms=total_processing_time,
             input_text_length=len(input_text),
             analysis_timestamp=datetime.now().isoformat()
