@@ -18,6 +18,8 @@ A post-generation hallucination risk assessment system that analyzes AI-generate
 
 ## 🏗️ Architecture
 
+<img width="1920" height="1080" alt="Scoring and Explanability" src="https://github.com/user-attachments/assets/4aa08645-78f4-421c-a406-fef92ae74012" />
+
 FACTLESS operates as a deterministic 7-step pipeline:
 
 1. **Sentence Segmentation** - Break text into analyzable units
