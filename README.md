@@ -1,4 +1,4 @@
-# FACTLESS - AI Reliability Analysis Engine
+# FACTLESS 2.0 - AI Reliability Analysis Engine
 
 A post-generation hallucination risk assessment system that analyzes AI-generated text using internal linguistic patterns only.
 
